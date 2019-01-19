@@ -2,3 +2,12 @@
  * All of the CSS for your public-facing functionality should be
  * included in this file.
  */
+.legitcar-verification-result ul {
+  list-style: none;
+}
+
+.legitcar-verification-result ul li span {
+  padding-right: 20px;
+  font-weight: 700;
+}
+/*# sourceMappingURL=legitcar-api-client-public.css.map */

@@ -1,0 +1,17 @@
+/**
+ * All of the CSS for your public-facing functionality should be
+ * included in this file.
+ */
+
+.legitcar-verification-result {
+    ul {
+        list-style: none;
+
+        li {
+            span {
+                padding-right: 20px;
+                font-weight: 700;
+            }
+        }
+    }
+}

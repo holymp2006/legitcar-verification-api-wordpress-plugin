@@ -50,7 +50,6 @@ class LegitCar_API_Client_Public
 	 */
 	public function __construct($legitcar_api_client, $version)
 	{
-
 		$this->legitcar_api_client = $legitcar_api_client;
 		$this->version = $version;
 
@@ -63,7 +62,6 @@ class LegitCar_API_Client_Public
 	 */
 	public function enqueue_styles()
 	{
-
 		/**
 		 * This function is provided for demonstration purposes only.
 		 *
@@ -126,12 +124,15 @@ class LegitCar_API_Client_Public
 	}
 	protected function unauthorised($response)
 	{
+		if (!is_array($response) || !isset($response['response']) || !isset($response['response']['code'])) {
+			//$response is not structured how we want
+			return false;
+		}
 		return strpos(wp_remote_retrieve_response_code($response['response']['code']), '401');
 	}
 	protected function getToken()
 	{
-		// todo: inspect cache. it's not working
-		if (!$response = wp_cache_get('LEGITCAR_TOKEN', 'LEGITCAR')) {
+		if (!$response = get_transient('LEGITCAR_TOKEN')) {
 			$response = wp_remote_post($this->baseUrl() . '/user/login', [
 				'headers' => [
 					'Content-Type' => 'application/x-www-form-urlencoded; charset=UTF-8',
@@ -142,17 +143,15 @@ class LegitCar_API_Client_Public
 					'password' => $this->password()
 				]
 			]);
-			if ($this->unauthorised($response) || is_wp_error($response)) {
-				//401 UNAUTHORIZED || WP error
+			if (is_wp_error($response) || $this->unauthorised($response)) {
+				// WP error || 401 UNAUTHORIZED
 				return false;
 			}
-			//cache token for 540 seconds (9mins)
-			wp_cache_set('LEGITCAR_TOKEN', $response, 'LEGITCAR', 540);
+			//cache token for 540 seconds (9mins), using wp transients
+			set_transient('LEGITCAR_TOKEN', $response, 540);
 		}
 
-		print_r($response['body']);
-		die();
-		return $response['body']['token'];
+		return json_decode($response['body'])->token;
 	}
 	protected function isValidVin($vin)
 	{
@@ -173,45 +172,42 @@ class LegitCar_API_Client_Public
 	}
 	public function verify()
 	{
-		$vin = $_REQUEST['vin'];
 		if (!defined('DOING_AJAX') || !DOING_AJAX) {
 			die();
 		}
+		$vin = $_REQUEST['vin'];
 		if (!$this->isValidVin($vin)) {
 			//failed validation. tell frontend.
-			status_header(400);
-			exit;
+			wp_send_json_error('invalid vin', 400);
 		}
-		// if (!$response = wp_cache_get('LEGITCAR_' . $vin, 'LEGITCAR')) {
+
+		if (!$response = get_transient('LEGITCAR_' . $vin)) {
 			//we couldn't get result from cache, make external request
-		if (!$token = $this->getToken()) {
+			if (!$token = $this->getToken()) {
 				//failed to get token. tell frontend.
-			status_header(401);
-				//header("HTTP/1.1 401 Unauthorized");
-			exit;
-		}
-		echo $token;
-		die();
-		$response = wp_remote_post($this->baseUrl() . '/vehicle/verify', [
-			'headers' => [
-				'Content-Type' => 'application/x-www-form-urlencoded; charset=UTF-8',
-				'Cache-Control' => 'no-cache',
-				'Authorization' => 'Bearer ' . $token
-			],
-			'body' => [
-				'vin' => $vin
-			]
-		]);
-		if (is_wp_error($response)) {
+				wp_send_json_error('error getting token for your request. please try again later', 401);
+			}
+
+			$response = wp_remote_post($this->baseUrl() . '/vehicle/verify', [
+				'headers' => [
+					'Content-Type' => 'application/x-www-form-urlencoded; charset=UTF-8',
+					'Cache-Control' => 'no-cache',
+					'Authorization' => 'Bearer ' . $token
+				],
+				'body' => [
+					'vin' => $vin
+				]
+			]);
+			if (is_wp_error($response)) {
 				//WP error
-			status_header(400);
-				// wp_send_json_error()
-			exit;
-		}
+				wp_send_json_error('error completing your request. please try again later', 422);
+			}
 			//cache result of search for set duration
-		wp_cache_set('LEGITCAR_' . $vin, $response, 'LEGITCAR', $this->cacheDuration());
-		// }
-		$this->saveToSession($response['body']);
+			set_transient('LEGITCAR_' . $vin, $response, $this->cacheDuration());
+		}
+
+		$response = json_decode($response['body']);
+		$this->saveToSession($response);
 		wp_send_json_success($response);
 	}
 	protected function saveToSession($data)
@@ -224,6 +220,12 @@ class LegitCar_API_Client_Public
 	protected function verificationUrl()
 	{
 		return 'legitcar_verify';
+	}
+	protected function containsShortcodeAndParam($array)
+	{
+		return (!empty($array[2]) &&
+			in_array('legitcar_verification_result', $array[2]) &&
+			!empty($array[3]) && strpos($array[3][0], 'strict'));
 	}
 	/**
 	 * Register shortcodes for the public-facing side of the site.
@@ -245,13 +247,49 @@ class LegitCar_API_Client_Public
 		add_action('wp_ajax_nopriv_' . $this->verificationUrl(), array($this, 'verify'));
 		add_action('wp_ajax_' . $this->verificationUrl(), array($this, 'verify'));
 	}
-	public function verificationResult()
+	/**
+	 * define miscellaneous actions
+	 *
+	 * @return void
+	 */
+	public function miscActions()
 	{
+		add_action('template_redirect', array($this, 'force404'));
+	}
+	public function force404()
+	{
+		if (!is_singular()) return;
+		global $post;
+		if (!empty($post->post_content)) {
+			$regex = get_shortcode_regex();
+			preg_match_all('/' . $regex . '/', $post->post_content, $matches);
+			if ($this->containsShortcodeAndParam($matches) && !isset($_SESSION['LEGITCAR_VERIFICATION_RESULT'])) {
+				global $wp_query;
+				$wp_query->set_404();
+				status_header(404);
+				get_template_part(404);
+				exit;
+			}
+		}
+	}
+	public function verificationResult($params)
+	{
+		extract(shortcode_atts(array(
+			'strict' => null
+		), $params));
+
+		session_start(array('read_and_close' => true));
 		if (!isset($_SESSION['LEGITCAR_VERIFICATION_RESULT'])) {
 			return 'No Result';
+			exit;
 		}
-		$result = $_SESSION['LEGITCAR_VERIFICATION_RESULT'];
+		$result = json_decode(json_encode($_SESSION['LEGITCAR_VERIFICATION_RESULT']), true);
+		if (empty($result)) {
+			return 'No Result';
+			exit;
+		}
 
+		return $this->verificationResultHTML($result);
 	}
 	public function verificationForm($params)
 	{
@@ -265,7 +303,7 @@ class LegitCar_API_Client_Public
 
 		ob_start(); ?>
 
-		<form id="legitcar-verification-form" class="<?= $form_classes ?>" action="#" data-action="<?= home_url() . '/' . $form_action ?>" method="post">
+		<form id="legitcar-verification-form" class="<?= $form_classes ?>" action="#" data-url="<?= home_url() . '/' . $form_action ?>" method="post">
 			<label><?= $label ?></label>
 			<input name="legitcar_verification_vin" type="text" id="legitcar-verification-vin" placeholder="<?= $placeholder ?>">
 
@@ -273,6 +311,71 @@ class LegitCar_API_Client_Public
 		</form>
 	
 	<?php return ob_get_clean();
+}
+/**
+ * Structure the html to display as verification result.
+ * You can structure the html however you want.
+ * For simplicty, we've used <ul> tags.
+ * The variable '$array' is the result of the VIN verification -
+ * as seen in the LegitCar API documentation - converted to array.
+ *
+ * @param array $array
+ * @return void
+ */
+protected function verificationResultHTML($array)
+{
+	ob_start(); //don't touch this line
+	?>
+
+	<div class="legitcar-verification-result">
+		<ul><?php 
+		foreach ($array as $key => $value):
+			if(is_string($value)): ?>
+			<li>
+				<span>
+					<?= ucwords(str_replace("_", " ", $key)); ?>:
+				</span><?= $value ?>
+			</li>
+		<?php 		
+			endif;
+		endforeach;
+		
+		?></ul>
+		<?php 
+		if(is_array($array['vehicle'])): ?>
+			<ul>
+				<?php 
+				foreach ($array['vehicle'] as $key => $value):
+					if(is_string($value)): ?>
+						<li>
+							<span>
+								<?= ucwords(str_replace("_", " ", $key)); ?>:
+							</span><?= $value ?>
+						</li>
+					<?php 
+					endif;
+				endforeach; ?>		
+			</ul>
+			<?php if(isset($array['vehicle']['decoded_details'])): ?>
+				<h4>Decoded</h4>
+				<ul>
+					<?php 
+					foreach ($array['vehicle']['decoded_details'] as $key => $value):
+						if(is_string($value) && !empty($value)): ?>
+							<li>
+								<span>
+									<?= ucwords(str_replace("_", " ", $key)); ?>:
+								</span><?= $value ?>
+							</li>
+						<?php 
+						endif;
+					endforeach; ?>		
+				</ul>
+			<?php endif; ?>
+		<?php endif; ?>
+	</div>
+
+<?php return ob_get_clean(); //don't touch this line
 }
 
 }

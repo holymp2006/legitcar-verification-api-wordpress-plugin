@@ -1,0 +1,9 @@
+{
+    "version": 3,
+    "mappings": "AAAA;;;GAGG;AAEH,AACI,6BADyB,CACzB,EAAE,CAAC;EACC,UAAU,EAAE,IAAI;CAQnB;;AAVL,AAKY,6BALiB,CACzB,EAAE,CAGE,EAAE,CACE,IAAI,CAAC;EACD,aAAa,EAAE,IAAI;EACnB,WAAW,EAAE,GAAG;CACnB",
+    "sources": [
+        "legitcar-api-client-public.scss"
+    ],
+    "names": [],
+    "file": "legitcar-api-client-public.css"
+}

@@ -162,6 +162,9 @@ class LegitCar_API_Client
 
 		//api routes
 		$plugin_public->apiRoutes();
+
+		//miscellaneous
+		$plugin_public->miscActions();
 	}
 
 	/**
