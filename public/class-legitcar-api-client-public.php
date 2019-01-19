@@ -120,7 +120,7 @@ class LegitCar_API_Client_Public
 	}
 	protected function baseUrl()
 	{
-		return 'http://127.0.0.1:8000/api';
+		return 'https://legitcar.ng/api';
 	}
 	protected function unauthorised($response)
 	{
@@ -170,6 +170,12 @@ class LegitCar_API_Client_Public
 		//passed successfully
 		return $vin;
 	}
+	/**
+	 * The actual verification function. Where the call to Legitcar API is made.
+	 * You can use the $response how you want.
+	 *
+	 * @return void
+	 */
 	public function verify()
 	{
 		if (!defined('DOING_AJAX') || !DOING_AJAX) {
@@ -206,9 +212,9 @@ class LegitCar_API_Client_Public
 			set_transient('LEGITCAR_' . $vin, $response, $this->cacheDuration());
 		}
 
-		$response = json_decode($response['body']);
-		$this->saveToSession($response);
-		wp_send_json_success($response);
+		$response = json_decode($response['body']); //use the $response how you want
+		$this->saveToSession($response); //we are saving to session, so that we can retrieve from session later if the 'legitcar_verification_result' shortcode is used.
+		wp_send_json_success($response); //return json to frontend
 	}
 	protected function saveToSession($data)
 	{
@@ -248,13 +254,15 @@ class LegitCar_API_Client_Public
 		add_action('wp_ajax_' . $this->verificationUrl(), array($this, 'verify'));
 	}
 	/**
-	 * define miscellaneous actions
+	 * Define miscellaneous actions
+	 * Uncomment the 'template_redirect' action line, 
+	 * to redirect all direct requests to your verification result page to 404.
 	 *
 	 * @return void
 	 */
 	public function miscActions()
 	{
-		add_action('template_redirect', array($this, 'force404'));
+		// add_action('template_redirect', array($this, 'force404'));
 	}
 	public function force404()
 	{
@@ -329,46 +337,46 @@ protected function verificationResultHTML($array)
 
 	<div class="legitcar-verification-result">
 		<ul><?php 
-		foreach ($array as $key => $value):
-			if(is_string($value)): ?>
+					foreach ($array as $key => $value) :
+						if (is_string($value)) : ?>
 			<li>
 				<span>
 					<?= ucwords(str_replace("_", " ", $key)); ?>:
 				</span><?= $value ?>
 			</li>
-		<?php 		
-			endif;
-		endforeach;
-		
-		?></ul>
 		<?php 
-		if(is_array($array['vehicle'])): ?>
+	endif;
+	endforeach;
+
+	?></ul>
+		<?php 
+	if (is_array($array['vehicle'])) : ?>
 			<ul>
 				<?php 
-				foreach ($array['vehicle'] as $key => $value):
-					if(is_string($value)): ?>
+			foreach ($array['vehicle'] as $key => $value) :
+				if (is_string($value)) : ?>
 						<li>
 							<span>
 								<?= ucwords(str_replace("_", " ", $key)); ?>:
 							</span><?= $value ?>
 						</li>
 					<?php 
-					endif;
+				endif;
 				endforeach; ?>		
 			</ul>
-			<?php if(isset($array['vehicle']['decoded_details'])): ?>
+			<?php if (isset($array['vehicle']['decoded_details'])) : ?>
 				<h4>Decoded</h4>
 				<ul>
 					<?php 
-					foreach ($array['vehicle']['decoded_details'] as $key => $value):
-						if(is_string($value) && !empty($value)): ?>
+				foreach ($array['vehicle']['decoded_details'] as $key => $value) :
+					if (is_string($value) && !empty($value)) : ?>
 							<li>
 								<span>
 									<?= ucwords(str_replace("_", " ", $key)); ?>:
 								</span><?= $value ?>
 							</li>
 						<?php 
-						endif;
+					endif;
 					endforeach; ?>		
 				</ul>
 			<?php endif; ?>

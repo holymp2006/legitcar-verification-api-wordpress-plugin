@@ -15,10 +15,10 @@
  * @wordpress-plugin
  * Plugin Name:       LEGITCAR API Client
  * Plugin URI:        http://legitcar.ng/
- * Description:       This is a short description of what the plugin does. It's displayed in the WordPress admin area.
+ * Description:       Consume LegiCar (legitcar.ng) VIN verification API from WordPress.
  * Version:           1.0.0
  * Author:            Samuel Ogbujimma
- * Author URI:        http://legitcar.ng/
+ * Author URI:        http://twitter.com/samuelik3chukwu
  * License:           GPL-2.0+
  * License URI:       http://www.gnu.org/licenses/gpl-2.0.txt
  * Text Domain:       legitcar-api-client

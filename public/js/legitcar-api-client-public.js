@@ -11,19 +11,25 @@ var legitCar = (function ($) {
 				btn.val("Please wait...");
 				//make ajax request
 				$.ajax({
-					url: legitcar_data.ajax_url,
-					type: 'post',
-					data: {
-						action: legitcar_data.verification_url,
-						vin: vin
-					},
-					success: function (data, textStatus) {
+						url: legitcar_data.ajax_url,
+						type: 'post',
+						data: {
+							action: legitcar_data.verification_url,
+							vin: vin
+						}
+					}).done(function (data) {
 						window.location.href = form.attr("data-url");
-					},
-					fail: function (xhr, textStatus, error) {
+					})
+					.fail(function (err) {
+						var data = err.responseJSON;
+						var html = err.statusText;
+						if (typeof data === 'object' && data !== null && data.success === false) {
+							html = data.data;
+						}
+						form.find(".legitcar-verification-error").remove();
+						form.append($("<p class='legitcar-verification-error'>" + html + "</p>"));
 						btn.val(text);
-					}
-				});
+					});
 				return false;
 			});
 		},
