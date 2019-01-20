@@ -128,7 +128,7 @@ class LegitCar_API_Client_Public
 			//$response is not structured how we want
 			return false;
 		}
-		return strpos(wp_remote_retrieve_response_code($response['response']['code']), '401');
+		return strpos(wp_remote_retrieve_response_code($response), '401') !== false;
 	}
 	protected function getToken()
 	{
@@ -208,6 +208,10 @@ class LegitCar_API_Client_Public
 				//WP error
 				wp_send_json_error('error completing your request. please try again later', 422);
 			}
+			if ($this->unauthorised($response)) {
+				//Site owner doesn't have permissions on LegitCar
+				wp_send_json_error('error completing your request. please contact admin', 401);
+			}
 			//cache result of search for set duration
 			set_transient('LEGITCAR_' . $vin, $response, $this->cacheDuration());
 		}
@@ -218,9 +222,8 @@ class LegitCar_API_Client_Public
 	}
 	protected function saveToSession($data)
 	{
-		if (!session_id()) {
-			session_start();
-		}
+		session_start();
+
 		$_SESSION['LEGITCAR_VERIFICATION_RESULT'] = $data;
 	}
 	protected function verificationUrl()
@@ -256,7 +259,7 @@ class LegitCar_API_Client_Public
 	/**
 	 * Define miscellaneous actions
 	 * Uncomment the 'template_redirect' action line, 
-	 * to redirect all direct requests to your verification result page to 404.
+	 * to redirect all direct requests to your verification result page, to 404.
 	 *
 	 * @return void
 	 */
