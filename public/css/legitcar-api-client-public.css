@@ -2,7 +2,7 @@
  * All of the CSS for your public-facing functionality should be
  * included in this file.
  */
-.legitcar-verification-form .legitcar-verification-error {
+#legitcar-verification-form .legitcar-verification-error {
   color: red;
 }
 
